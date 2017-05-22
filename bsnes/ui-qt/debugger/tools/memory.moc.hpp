@@ -1,3 +1,5 @@
+#include <pistache/endpoint.h>
+
 #include "qhexedit2/qhexedit.moc.hpp"
 
 class MemoryEditor : public Window {
@@ -39,13 +41,19 @@ public:
   uint8_t usage(unsigned addr);
 
   MemoryEditor();
+  ~MemoryEditor();
   
 private:
+  void startRestEndpoint();
+  void stopRestEndpoint();
+  Net::Http::Endpoint* _restServer;
+
   QByteArray searchStr;
   int searchPos;
 
 public slots:
   void show();
+  void hide();
   void sourceChanged(int);
   void refresh();
   void updateOffset();

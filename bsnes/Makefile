@@ -54,6 +54,8 @@ else
   unknown_platform: help;
 endif
 
+link += -lnet_static -lpthread
+
 # implicit rules
 compile = \
   $(strip \

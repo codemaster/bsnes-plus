@@ -1,9 +1,21 @@
+#include <memory>
+
 #include "memory.moc"
 #include "qhexedit.moc"
 #include "commands.moc"
 
 #include "qhexedit2/qhexedit.cpp"
 #include "qhexedit2/commands.cpp"
+
+const int REST_PORT = 1993;
+
+class RestHandler : public Net::Http::Handler {
+  HTTP_PROTOTYPE(RestHandler)
+  public:
+    void onRequest(const Net::Http::Request& req, Net::Http::ResponseWriter response) {
+      response.send(Net::Http::Code::Ok, "Rest Test!");
+    }
+};
 
 MemoryEditor *memoryEditor;
 
@@ -104,6 +116,13 @@ MemoryEditor::MemoryEditor() {
   sourceChanged(0);
 }
 
+MemoryEditor::~MemoryEditor() {
+  // Ensure the REST endpoint is not running
+  stopRestEndpoint();
+  // Deallocate the REST system
+  delete _restServer;
+}
+
 void MemoryEditor::autoUpdate() {
   if(SNES::cartridge.loaded() && autoUpdateBox->isChecked()) {
     editor->refresh(false);
@@ -128,9 +147,42 @@ void MemoryEditor::synchronize() {
   }
 }
 
+void MemoryEditor::startRestEndpoint() {
+  // Ensure we have allocated our REST system
+  if (nullptr == _restServer) {
+    // Create the REST system
+    Net::Address addr(Net::Ipv4::any(), Net::Port(REST_PORT));
+    _restServer = new Net::Http::Endpoint(addr);
+    auto opts = Net::Http::Endpoint::options().threads(1);
+    _restServer->init(opts);
+
+    // Set REST handler
+    _restServer->setHandler(std::make_shared<RestHandler>());
+
+    // Start the REST thread
+    _restServer->serveThreaded();
+  }
+
+  // Start the REST system
+}
+
+void MemoryEditor::stopRestEndpoint() {
+  // Ensure we have alocated the REST system
+  if (nullptr != _restServer) {
+    // Shut it down
+    _restServer->shutdown();
+  }
+}
+
 void MemoryEditor::show() {
   Window::show();
   refresh();
+  startRestEndpoint();
+}
+
+void MemoryEditor::hide() {
+  Window::hide();
+  stopRestEndpoint();
 }
 
 void MemoryEditor::sourceChanged(int index) {
