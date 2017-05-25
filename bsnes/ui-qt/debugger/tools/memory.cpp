@@ -180,7 +180,7 @@ void MemoryEditor::show() {
   startRestEndpoint();
 }
 
-void MemoryEditor::hide() {
+void MemoryEditor::closeEvent(QCloseEvent* ev) {
   Window::hide();
   stopRestEndpoint();
 }

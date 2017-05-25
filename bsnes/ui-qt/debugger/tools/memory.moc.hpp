@@ -50,10 +50,10 @@ private:
 
   QByteArray searchStr;
   int searchPos;
+  void closeEvent(QCloseEvent* ev);
 
 public slots:
   void show();
-  void hide();
   void sourceChanged(int);
   void refresh();
   void updateOffset();
