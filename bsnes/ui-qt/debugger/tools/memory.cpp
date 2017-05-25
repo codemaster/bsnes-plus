@@ -7,95 +7,6 @@
 #include "qhexedit2/qhexedit.cpp"
 #include "qhexedit2/commands.cpp"
 
-const int REST_PORT = 1993;
-
-class RestHandler : public Net::Http::Handler {
-  HTTP_PROTOTYPE(RestHandler)
-
-  public:
-
-    static std::string trimString(std::string str) {
-      auto isspace = []( char ch ) { return std::isspace<char>( ch, std::locale::classic() ); };
-      str.erase(std::remove_if(str.begin(), str.end(), isspace), str.end());
-    }
-
-    void onRequest(const Net::Http::Request& req, Net::Http::ResponseWriter response) {
-      // Ensure we have a game loaded
-      if (!SNES::cartridge.loaded()) {
-        response.send(Net::Http::Code::Not_Found, "No game loaded");
-        return;
-      }
-
-      // Ignore all but GET and PATCH requests
-      auto method = req.method();
-
-      switch (method)
-      {
-        case Net::Http::Method::Get:
-          {
-            // Handle GET
-            auto query = req.query();
-            if (!query.has("position")) {
-              response.send(Net::Http::Code::Bad_Request, "No position provided");
-              return;
-            }
-            if (!query.has("count")) {
-              response.send(Net::Http::Code::Bad_Request, "No count provided");
-              return;
-            }
-            optionally_do(query.get("position"), [&response, &query, this](const std::string& pos) {
-              optionally_do(query.get("count"), [&response, &pos, this](const std::string& count) {
-                std::stringstream sstream;
-                auto posNum = (unsigned int) std::stoul(pos, nullptr, 16);
-                auto countNum = (unsigned int) std::stoul(count, nullptr, 10);
-
-                SNES::debugger.bus_access = true;
-                for (int i = 0; i < countNum; ++i) {
-                  auto byte = SNES::debugger.read(SNES::Debugger::MemorySource::CPUBus, posNum + i);
-                  sstream << std::hex << byte;
-                  sstream << " ";
-                }
-                SNES::debugger.bus_access = false;
-
-                response.send(Net::Http::Code::Ok, sstream.str());
-              });
-            });
-            break;
-          }
-        case Net::Http::Method::Patch:
-          {
-            // Handle PATCH
-            auto query = req.query();
-            if (!query.has("position")) {
-              response.send(Net::Http::Code::Bad_Request, "No position provided");
-              return;
-            }
-            auto body = trimString(req.body());
-            if(body.length() < 2 || body.length() % 2 != 0) {
-              response.send(Net::Http::Code::Bad_Request, "Must provide hexadecimal data on a per-byte basis");
-            }
-            optionally_do(query.get("position"), [&response, &body, this](const std::string& pos) {
-              auto posNum = std::stoul(pos, nullptr, 16);
-              std::stringstream stream;
-
-              SNES::debugger.bus_access = true;
-              for (int i = 0; i < body.length(); i = i + 2) {
-                auto numStr = body.substr(i, 2);
-                auto num = std::stoul(numStr, nullptr, 16);
-                SNES::debugger.write(SNES::Debugger::MemorySource::CPUBus, posNum++, num);
-              }
-              SNES::debugger.bus_access = false;
-
-              response.send(Net::Http::Code::Ok);
-            });
-          }
-          break;
-        default:
-          response.send(Net::Http::Code::Bad_Request, "Invalid HTTP verb: this only handles GET and PATCH");
-      }
-    }
-};
-
 MemoryEditor *memoryEditor;
 
 MemoryEditor::MemoryEditor() {
@@ -195,13 +106,6 @@ MemoryEditor::MemoryEditor() {
   sourceChanged(0);
 }
 
-MemoryEditor::~MemoryEditor() {
-  // Ensure the REST endpoint is not running
-  stopRestEndpoint();
-  // Deallocate the REST system
-  delete _restServer;
-}
-
 void MemoryEditor::autoUpdate() {
   if(SNES::cartridge.loaded() && autoUpdateBox->isChecked()) {
     editor->refresh(false);
@@ -226,42 +130,9 @@ void MemoryEditor::synchronize() {
   }
 }
 
-void MemoryEditor::startRestEndpoint() {
-  // Ensure we have allocated our REST system
-  if (nullptr == _restServer) {
-    // Create the REST system
-    Net::Address addr(Net::Ipv4::any(), Net::Port(REST_PORT));
-    _restServer = new Net::Http::Endpoint(addr);
-    auto opts = Net::Http::Endpoint::options().threads(1);
-    _restServer->init(opts);
-
-    // Set REST handler
-    _restServer->setHandler(std::make_shared<RestHandler>());
-
-    // Start the REST thread
-    _restServer->serveThreaded();
-  }
-
-  // Start the REST system
-}
-
-void MemoryEditor::stopRestEndpoint() {
-  // Ensure we have alocated the REST system
-  if (nullptr != _restServer) {
-    // Shut it down
-    _restServer->shutdown();
-  }
-}
-
 void MemoryEditor::show() {
   Window::show();
   refresh();
-  startRestEndpoint();
-}
-
-void MemoryEditor::closeEvent(QCloseEvent* ev) {
-  Window::hide();
-  stopRestEndpoint();
 }
 
 void MemoryEditor::sourceChanged(int index) {

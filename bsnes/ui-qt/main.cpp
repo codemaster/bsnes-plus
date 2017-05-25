@@ -27,6 +27,10 @@ const char defaultStylesheet[] =
 #include "radio-action.moc"
 #include "window.moc"
 
+#if !defined(PLATFORM_OSX)
+#include "api/handler.cpp"
+#endif
+
 #include "application/application.cpp"
 #include "link/filter.cpp"
 #include "link/music.cpp"

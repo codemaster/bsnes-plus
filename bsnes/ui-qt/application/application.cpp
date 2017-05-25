@@ -1,6 +1,9 @@
 #include "application.moc"
+
 VideoDisplay display;
 Application application;
+
+const int REST_PORT = 1993;
 
 #include "init.cpp"
 #include "arguments.cpp"
@@ -104,6 +107,10 @@ int Application::main(int &argc, char **argv) {
   SNES::system.init(&interface);
   mainWindow->system_loadSpecial_superGameBoy->setVisible(SNES::supergameboy.opened());
 
+#if !defined(PLATFORM_OSX)
+  startRestEndpoint();
+#endif
+
   parseArguments();
 
   timer = new QTimer(this);
@@ -189,7 +196,43 @@ Application::Application() : timer(0) {
   screensaverTime = 0;
 }
 
+#if !defined(PLATFORM_OSX)
+void Application::startRestEndpoint() {
+  // Ensure we have allocated our REST system
+  if (nullptr != _restServer) {
+    return;
+  }
+
+  // Create the REST system
+  Net::Address addr(Net::Ipv4::any(), Net::Port(REST_PORT));
+  _restServer = new Net::Http::Endpoint(addr);
+  auto opts = Net::Http::Endpoint::options().threads(1);
+  _restServer->init(opts);
+
+  // Set REST handler
+  _restServer->setHandler(std::make_shared<RestHandler>());
+
+  // Start the REST thread
+  _restServer->serveThreaded();
+}
+
+void Application::stopRestEndpoint() {
+  // Ensure we have alocated the REST system
+  if (nullptr != _restServer) {
+    // Shut it down
+    _restServer->shutdown();
+    // Now delete it
+    delete _restServer;
+    _restServer = nullptr;
+  }
+}
+#endif
+
 Application::~Application() {
+  #if !defined(PLATFORM_OSX)
+  stopRestEndpoint();
+  #endif
+  
   delete timer;
 
   //deleting (QApplication)app will segfault the application upon exit
