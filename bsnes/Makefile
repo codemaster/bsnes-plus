@@ -54,7 +54,7 @@ else
   unknown_platform: help;
 endif
 
-link += -lnet_static -lpthread
+link += -lboost_system -lpthread
 
 # implicit rules
 compile = \

@@ -1,6 +1,4 @@
-#if !defined(PLATFORM_OSX)
 #include "../api/handler.hpp"
-#endif
 
 struct VideoDisplay {
   unsigned outputWidth;
@@ -60,12 +58,10 @@ public:
   Application();
   ~Application();
 
-#if !defined(PLATFORM_OSX)
 private:
   void startRestEndpoint();
   void stopRestEndpoint();
-  Net::Http::Endpoint* _restServer;
-#endif
+  RestHandler* _restServer;
 
 public slots:
   void run();
